@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bro...</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: The application is designed as a single-view, mobile-first chat interface to directly simulate the conversational user flow from the source document. This structure is the most intuitive way to prototype a "chat-as-the-hero" app. The user begins by selecting one of three core financial problems, which triggers a dynamic, branching conversation managed by JavaScript. The user interacts solely by clicking choice buttons, and the app responds with text, images, and charts within the same chat window, guiding them towards a savings goal. This design was chosen to test the primary hypothesis: that a witty, persona-driven chat can make personal finance engaging for young Indians. -->
+    <!-- Visualization & Content Choices: The source document's conversational flow is implemented directly. User pain points are translated into interactive buttons. For the "Where's my money?" flow, the goal of showing spending breakdown is achieved using a Chart.js pie chart on a canvas element, as it's the most effective visualization for proportions. Humorous, visual reactions (like the "shocked GIF") are represented by placeholder images within the chat to maintain the persona's tone. All other content consists of styled HTML divs for chat bubbles and buttons, directly mapping the source's dialogue. This approach ensures the prototype is a faithful, interactive representation of the product concept. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        .chat-container::-webkit-scrollbar {
+            width: 0;
+            background: transparent;
+        }
+        .message-bubble {
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeIn 0.5s forwards;
+        }
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-sm mx-auto bg-white rounded-2xl shadow-2xl flex flex-col h-[90vh] max-h-[800px]">
+        <div class="p-4 border-b bg-gray-50 rounded-t-2xl">
+            <h1 class="text-xl font-bold text-center text-gray-800">Bro...</h1>
+            <p class="text-sm text-center text-gray-500">Your OG for all things money 💸</p>
+        </div>
+
+        <div id="chat-window" class="flex-1 p-4 overflow-y-auto space-y-4 chat-container">
+            <!-- Chat messages will be appended here -->
+        </div>
+
+        <div id="options-container" class="p-4 border-t bg-gray-50 rounded-b-2xl">
+            <!-- Option buttons will be appended here -->
+        </div>
+    </div>
+
+    <script>
+        const chatWindow = document.getElementById('chat-window');
+        const optionsContainer = document.getElementById('options-container');
+        let conversationState = {};
+        const API_KEY = "";
+
+        function addMessage(text, sender = 'app', isHtml = false) {
+            return new Promise(resolve => {
+                const messageWrapper = document.createElement('div');
+                messageWrapper.classList.add('message-bubble', 'flex', sender === 'user' ? 'justify-end' : 'justify-start');
+
+                const messageEl = document.createElement('div');
+                messageEl.classList.add('max-w-xs', 'px-4', 'py-2', 'rounded-xl');
+
+                if (sender === 'user') {
+                    messageEl.classList.add('bg-blue-500', 'text-white');
+                } else {
+                    messageEl.classList.add('bg-gray-200', 'text-gray-800');
+                }
+                
+                if (isHtml) {
+                    messageEl.innerHTML = text;
+                } else {
+                    const lines = text.split('\n');
+                    messageEl.innerHTML = lines.join('<br>');
+                }
+
+                messageWrapper.appendChild(messageEl);
+                chatWindow.appendChild(messageWrapper);
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+                
+                setTimeout(resolve, 300);
+            });
+        }
+        
+        function showOptions(options) {
+            optionsContainer.innerHTML = '';
+            const buttonWrapper = document.createElement('div');
+            buttonWrapper.classList.add('grid', 'gap-2');
+            if(options.length > 2) buttonWrapper.classList.add('grid-cols-2');
+
+            options.forEach(option => {
+                const button = document.createElement('button');
+                button.classList.add('w-full', 'bg-blue-500', 'text-white', 'font-semibold', 'py-2', 'px-4', 'rounded-lg', 'hover:bg-blue-600', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'transition-colors', 'duration-300');
+                button.textContent = option.text;
+                button.onclick = () => handleChoice(option.action, option.text);
+                buttonWrapper.appendChild(button);
+            });
+            optionsContainer.appendChild(buttonWrapper);
+        }
+
+        async function handleChoice(action, userText) {
+            if (userText) {
+                await addMessage(userText, 'user');
+            }
+            optionsContainer.innerHTML = '<div class="text-center text-gray-400">Advisor is typing...</div>';
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            switch (action) {
+                case 'start_problem':
+                    startProblemFlow(userText);
+                    break;
+                case 'show_spending':
+                    await showSpending();
+                    break;
+                case 'ask_vibe':
+                    askVibe();
+                    break;
+                case 'handle_vibe':
+                    await handleVibe(userText);
+                    break;
+                case 'ask_save_for_trip':
+                    askSaveForTrip();
+                    break;
+                case 'handle_save_prompt':
+                    await handleSavePrompt();
+                    break;
+                case 'ask_trip_type':
+                    askTripType();
+                    break;
+                case 'handle_trip_type':
+                    await handleTripType(userText);
+                    break;
+                case 'ask_destination':
+                    askDestination();
+                    break;
+                case 'handle_destination':
+                    await handleDestination(userText);
+                    break;
+                case 'ask_budget':
+                    await addMessage("So, how much damage we talking?\nTotal budget for the trip.");
+                    showOptions([
+                        { text: '₹10,000', action: 'handle_budget' },
+                        { text: '₹20,000', action: 'handle_budget' },
+                        { text: '₹30,000', action: 'handle_budget' },
+                        { text: '₹50,000+', action: 'handle_budget' },
+                    ]);
+                    break;
+                case 'handle_budget':
+                     await handleBudget(userText);
+                     break;
+                case 'ask_timeline':
+                    await addMessage("When do you want to be on that beach?");
+                    showOptions([
+                        { text: 'In 3 months', action: 'handle_timeline' },
+                        { text: 'In 6 months', action: 'handle_timeline' },
+                        { text: 'Next year', action: 'handle_timeline' },
+                    ]);
+                    break;
+                case 'handle_timeline':
+                    await handleTimeline(userText);
+                    break;
+                // Saving flow
+                case 'start_saving_flow':
+                     await startSavingFlow();
+                     break;
+                case 'ask_saving_style':
+                    askSavingStyle();
+                    break;
+                case 'handle_saving_style':
+                    await handleSavingStyle(userText);
+                    break;
+                // Loan flow
+                case 'start_loan_flow':
+                    await startLoanFlow();
+                    break;
+                case 'ask_loan_priority':
+                    askLoanPriority();
+                    break;
+                case 'handle_loan_priority':
+                    await handleLoanPriority(userText);
+                    break;
+
+            }
+        }
+        
+        // --- "Where's my money?" Flow ---
+        async function startProblemFlow(problem) {
+             if (problem === "Where's my money?") {
+                await addMessage("Yo, lemme guess.\nYou look in your wallet and it's just... *poof*? 🙄");
+                await addMessage("Relax, we all been there.");
+                await addMessage("Wanna see where the cash went?");
+                showOptions([{ text: 'Show me!', action: 'show_spending' }]);
+            } else if (problem === "I suck at saving") {
+                handleChoice('start_saving_flow');
+            } else if (problem === "Too many loans") {
+                handleChoice('start_loan_flow');
+            }
+        }
+
+        async function showSpending() {
+            await addMessage(`<div class="w-full h-64 p-2 chart-container"><canvas id="spendingChart"></canvas></div>`, 'app', true);
+            renderSpendingChart();
+            await addMessage("Bro... your daily chai, snack, and cab rides are partying like it's 1999. 👟");
+            
+            // Replaced Gemini API call with static witty text
+            await addMessage("✨Looks like your UPI is on a mission to bankrupt you. 😂 ");
+            await addMessage("Maybe switch to your hostel's mess food instead of Swiggy? Just a thought. 🙄");
+
+            handleChoice('ask_vibe');
+        }
+
+        function renderSpendingChart() {
+            const ctx = document.getElementById('spendingChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Food & Drinks', 'Shopping', 'Cabs', 'Bills', 'Other'],
+                    datasets: [{
+                        label: 'Your Spends',
+                        data: [4500, 2500, 2000, 3000, 1000],
+                        backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff'],
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } }
+                }
+            });
+        }
+        
+        function askVibe() {
+            addMessage("So, what's your vibe?");
+            showOptions([
+                { text: "I'm living life.", action: 'handle_vibe' },
+                { text: "I'm pretty sorted.", action: 'handle_vibe' },
+                { text: "Help me fix this.", action: 'handle_vibe' }
+            ]);
+        }
+
+        async function handleVibe(vibe) {
+            if (vibe === "I'm living life.") {
+                await addMessage("Acha, Mr. UPI King.\nLet's get your cash to chill out. 💸");
+            } else if (vibe === "I'm pretty sorted.") {
+                await addMessage("Chill?\nYour bank balance is yelling otherwise. Don't worry, we'll fix it. 😎");
+            } else {
+                await addMessage("Smart move.\nLet's set up a budget for you. One that actually works, unlike your last one. 🤓");
+            }
+            handleChoice('ask_save_for_trip');
+        }
+
+        async function askSaveForTrip() {
+            await addMessage("If you just skipped one of those a week, you'd have an extra ₹1,200 in your pocket. Imagine that.");
+            await addMessage("Wanna save that extra cash? We could put it towards your trip.");
+            showOptions([{ text: 'Wanna save', action: 'handle_save_prompt' }]);
+        }
+
+        async function handleSavePrompt() {
+             await addMessage("Sweet. But for what? Solo, all-boys trip, or... a family getaway? 🤣");
+             handleChoice('ask_trip_type');
+        }
+
+        function askTripType() {
+            showOptions([
+                { text: 'Solo', action: 'handle_trip_type' },
+                { text: "Boys' trip", action: 'handle_trip_type' },
+                { text: 'Family', action: 'handle_trip_type' }
+            ]);
+        }
+        
+        async function handleTripType(type) {
+             if(type === "Boys' trip") {
+                await addMessage("All-boys trip, huh?\nBetter lock your wallet up. 😉");
+             } else if (type === "Solo"){
+                 await addMessage("Solo trip! Love that main character energy for you. ✨");
+             } else {
+                 await addMessage("Family trip? Okay, good child alert! 😇");
+             }
+             await addMessage("Where's the crew headed?");
+             handleChoice('ask_destination');
+        }
+        
+        function askDestination() {
+            showOptions([
+                { text: 'Goa', action: 'handle_destination' },
+                { text: 'Thailand', action: 'handle_destination' },
+                { text: 'Kerala', action: 'handle_destination' },
+                { text: 'Not decided yet', action: 'handle_destination' }
+            ]);
+        }
+
+        async function handleDestination(dest) {
+            if(dest === 'Goa') {
+                await addMessage("Ah, the classic. Hope your liver is ready. 🍹");
+            } else if (dest === 'Thailand') {
+                await addMessage("Thailand! Sawasdee-krap! Bet you're just going for the... temples. 😉");
+            } else if (dest === 'Kerala') {
+                await addMessage("Kerala! God's own country. Very wholesome. Very nice.");
+            } else {
+                await addMessage("Mysterious! I like it. A surprise trip!");
+            }
+            handleChoice('ask_budget');
+        }
+        
+        async function handleBudget(budget) {
+            const isHighBudget = budget.includes('50,000');
+            if(isHighBudget){
+                await addMessage(`🤯 Bro. Are you taking a private jet?\nJust kidding, that's doable.`);
+            } else {
+                await addMessage(`Okay, ${budget}. Tight but totally doable. Let's make it work.`);
+            }
+            const visual_placeholder = `<div class="p-2"><img src="https://placehold.co/250x150/e2e8f0/64748b?text=Shocked+GIF+Here" alt="Shocked Reaction" class="rounded-lg"></div>`;
+            await addMessage(visual_placeholder, 'app', true);
+            handleChoice('ask_timeline');
+        }
+        
+        async function handleTimeline(timeline) {
+            if(timeline === 'Next year') {
+                await addMessage("Next year? That's like, a lifetime in my book. We better start planning. 👴");
+            } else {
+                await addMessage(`${timeline}, huh? Ambitious! Let's get cracking.`);
+            }
+             await addMessage("Okay, so we've got a budget and a deadline. Let's make this happen. ✈️");
+             optionsContainer.innerHTML = '<div class="text-center text-green-500 font-bold">Goal Set!</div>';
+        }
+
+        // --- "I suck at saving" Flow ---
+        async function startSavingFlow() {
+            await addMessage("Bruh. Same. But my bank account looks better than your dating profile. 😂");
+            await addMessage("We just gotta get you a 'money ritual.'");
+            handleChoice('ask_saving_style');
+        }
+
+        function askSavingStyle() {
+            addMessage("What's the easiest way for you to save?");
+            showOptions([
+                { text: 'Auto-save a little every week', action: 'handle_saving_style' },
+                { text: 'Save a lump sum on payday', action: 'handle_saving_style' }
+            ]);
+        }
+        
+        async function handleSavingStyle(userText) {
+             await addMessage("Ayyy, a commitment! I like it. 🤝");
+             await addMessage("How much you wanna put away?");
+             
+             // Replaced Gemini API call with static witty text
+            await addMessage("✨ Just imagine your UPI is on a diet. 🥑");
+            await addMessage("Every time you're about to spend, ask if it's worth delaying your trip. 😉");
+             
+             optionsContainer.innerHTML = '<div class="text-center text-green-500 font-bold">To be continued...</div>';
+        }
+
+        // --- "Too many loans" Flow ---
+        async function startLoanFlow() {
+            await addMessage("Ugh. Hate that for you.\nSo many loans, so little cash. 💸");
+            await addMessage("But hey, we can fix it.");
+            handleChoice('ask_loan_priority');
+        }
+        
+        function askLoanPriority() {
+            addMessage("You wanna focus on paying those down first, or just start a trip fund?");
+            showOptions([
+                { text: 'Pay off loans', action: 'handle_loan_priority' },
+                { text: 'Start trip fund', action: 'handle_loan_priority' }
+            ]);
+        }
+
+        async function handleLoanPriority(priority) {
+            if(priority === 'Start trip fund') {
+                await addMessage("Alright, rebel. I respect it.");
+            } else {
+                await addMessage("Smart choice. Let's tackle those loans first.");
+            }
+            await addMessage("Let's get you a savings plan that's smarter than your last late-night chai decision. ☕");
+            optionsContainer.innerHTML = '<div class="text-center text-green-500 font-bold">To be continued...</div>';
+        }
+
+
+        // Initial Start
+        function start() {
+            showOptions([
+                { text: "Where's my money?", action: 'start_problem' },
+                { text: "I suck at saving", action: 'start_problem' },
+                { text: "Too many loans", action: 'start_problem' }
+            ]);
+        }
+
+        start();
+    </script>
+</body>
+</html>
